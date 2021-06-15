@@ -140,5 +140,6 @@ async def check_corn(message):
         #send to general chat
         main_chat = message.guild.get_channel(cornelius_storage.MAIN_CHAT_ID)
         await sendEmbed(shame_embed,main_chat)
+        await message.delete()
 
 client.run(cornelius_storage.TOKEN)
