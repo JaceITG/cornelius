@@ -65,6 +65,10 @@ async def implicit(message):
     if lower == "ping":
         await sendMsg("pong", channel)
 
+    if channel.id == cornelius_storage.CORN_FIELD_ID:
+       await check_corn(message)
+    
+
 #Admin commands
 async def adminCmd(message):
     text = message.content
@@ -120,5 +124,21 @@ async def getLastImg(chan):
         if len(message.attachments) >= 1:
             return message.attachments[0].url
     return None
+
+async def check_corn(message):
+    if message.content.strip() != "🌽":
+        #PUNISH THE HERETIC
+        heretic = message.guild.get_role(cornelius_storage.HERETIC_ROLE_ID)
+        await message.author.add_roles(heretic)
+        
+        #Display offending message
+        shame_embed = discord.Embed(title=f"⚠️ WARNING: CRIMES AGAINST CORN COMMITTED BY {message.author.display_name}⚠️")
+        shame_embed.set_thumbnail(url=message.author.avatar_url)
+        shame_embed.add_field(name="Instead of posting 🌽 in #corn-field as the Corn Gods intended, they posted:", value=f"\"{message.content}\"")
+        shame_embed.set_footer(text="Shame on them!")
+
+        #send to general chat
+        main_chat = message.guild.get_channel(cornelius_storage.MAIN_CHAT_ID)
+        await sendEmbed(shame_embed,main_chat)
 
 client.run(cornelius_storage.TOKEN)
