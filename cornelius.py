@@ -1,9 +1,12 @@
-import discord, random
+import discord, random, asyncio, pprint
 from aioconsole import ainput
+from discord import embeds
 import cornelius_storage
 
 intents = discord.Intents.all()
 client = discord.Client(intents=intents)
+
+count_li = []
 
 #On bot startup/ready
 @client.event
@@ -11,6 +14,53 @@ async def on_ready():
     print('We have logged in as {0.user}'.format(client))
 
     await client.change_presence(activity=discord.Game(name=f"use {cornelius_storage.PREFIX}help for help!"))
+
+    await harvest_loop()
+
+@client.event
+async def on_reaction_add(reaction, user):
+    message = reaction.message
+    emoji = reaction.emoji
+    embed = message.embeds
+
+    if user == client.user:
+        return
+    
+    #Pagination for Leaderboard
+    if embed and embed[0].title == "🌽 Corn Leaderboard 🌽":
+        await handle_pagination(reaction, user)
+
+@client.event
+async def on_reaction_remove(reaction, user):
+    message = reaction.message
+    emoji = reaction.emoji
+    embed = message.embeds
+
+    if user == client.user:
+        return
+    
+    #Pagination for Leaderboard
+    if embed and embed[0].title == "🌽 Corn Leaderboard 🌽":
+        await handle_pagination(reaction, user)
+
+#Cycle through pages of embed in reaction.message based on reacted emoji
+async def handle_pagination(reaction, user):
+    message = reaction.message
+    emoji = reaction.emoji
+    embed = message.embeds
+
+    properties = embed[0].to_dict()
+    current_page = int(properties['footer']['text'].split(' ')[1])
+
+    if emoji == "⬅️":
+        new_page = current_page-1
+    elif emoji == "➡️":
+        new_page = current_page+1
+    else:
+        return
+    
+    new_embed = await get_harvest_embed(None, count_li, page=new_page)
+    await message.edit(embed=new_embed)
 
 #On message received
 @client.event
@@ -56,6 +106,17 @@ async def prefixed(message):
     if cmd == "cornfact" or cmd == "cf":
         fact = random.choice(cornelius_storage.CORN_FACTS)
         await sendEmbed(discord.Embed(title="Corn Fact",description=fact, color=discord.Colour(12745742)), channel)
+    
+    if cmd == "corncount" or cmd== "cc":
+        global count_li
+
+        #Sort dictionary entries into a k,v pair list
+
+        emb = await get_harvest_embed(author, count_li)
+        sent = await sendEmbed(emb, channel)
+        await sent.add_reaction("⬅️")
+        await sent.add_reaction("➡️")
+
 
 #Implicit commands
 async def implicit(message):
@@ -98,6 +159,9 @@ async def adminCmd(message):
         dmUser = client.get_user(int(cmd[1]))
         dmMsg = ' '.join(cmd[2:])
         await sendMsg(dmMsg,dmUser)
+    
+    if cmd[0] == "forceharvest":
+        await harvest_corn(cornelius_storage.CORN_FIELD_ID)
 
 #######################################################
 ################## Utility Functions ##################
@@ -114,8 +178,9 @@ async def sendMsg(msg, channel):
 #Sends embed to given channel, Optional: pass content to go with it
 async def sendEmbed(msg, channel, cntnt=None):
     try:
-        await channel.send(content=cntnt,embed=msg)
+        sent = await channel.send(content=cntnt,embed=msg)
         print(f"Sent embed to {channel.name}: {msg.title}")
+        return sent
     except:
         print(f"Error while attempting to send embed to {channel.name}")
 
@@ -123,8 +188,9 @@ async def sendEmbed(msg, channel, cntnt=None):
 async def sendFile(fp, channel, cntnt=None):
     imgFile = discord.File(fp)
     try:
-        await channel.send(content=cntnt,file=imgFile)
+        sent = await channel.send(content=cntnt,file=imgFile)
         print(f"Sent file to {channel.name}: {fp}")
+        return sent
     except:
         print(f"Error while attempting to send {fp} to {channel.name}")
 
@@ -151,5 +217,79 @@ async def check_corn(message):
         main_chat = message.guild.get_channel(cornelius_storage.MAIN_CHAT_ID)
         await sendEmbed(shame_embed,main_chat)
         await message.delete()
+
+#Create a dict storing amount of :corn:s sent by each user
+async def harvest_corn(channel):
+    global count_li
+
+    #initialize dict
+    corn_counts = {}
+    for memb in channel.guild.members:
+        corn_counts[memb] = 0
+
+    async for msg in channel.history(limit=999999):
+        try:
+            corn_counts[msg.author] += 1
+        except KeyError:
+            #Skip count if user not in dict; probably means user has left the server
+            pass
+    
+    #Create sorted list based on the dictionary
+    count_li = []
+    for i in corn_counts.items():
+        count_li.append(i)
+    
+    count_li.sort(key=lambda x: x[1], reverse=True)
+
+async def harvest_loop(period_mins=180):
+    field_chan = client.get_channel(cornelius_storage.CORN_FIELD_ID)
+
+    while True:
+        await harvest_corn(field_chan)
+        await asyncio.sleep(period_mins*60)
+
+#Construct a paginated leaderboard embed using sorted (userid,)
+async def get_harvest_embed(author, li, page=1, page_len=10):
+
+    if len(li)%page_len == 0:
+        #edge cases (i.e. numplayers 20 length 10, we need 2 pages not 3)
+        #this is probably bad way to handle it and im failing at easy math lol
+        max_page = (len(li)//(page_len))
+    else:
+        max_page = (len(li)//(page_len)) +1
+
+    #Page looparound for page>max_page
+    if page>max_page:
+        page %= max_page
+    elif page<=0:
+        page = max_page-page
+
+    desc = f"Rank     Name       [Page {page}/{max_page}]\n"
+
+    #Find index range for requested page
+    start = (page-1)*page_len
+    end = min(start+page_len,len(li))
+
+    for i in range(start,end):
+        #Add listing to desc for each user
+        curr_user = li[i]
+        name = curr_user[0].display_name
+        #truncate usernames to 15 char
+        if len(name)>15:
+            name = name[:12] + "..."
+
+        desc+= f"{i+1: <4}➤   {name: <15}  {curr_user[1]: 3} 🌽\n"
+    desc+="____________________________________\n"
+
+    #if author is in the member entry of a list item
+    member_list = [x[0] for x in li]
+    if author in member_list:
+        author_ind = member_list.index(author)
+        desc += f"Your Rank: {author_ind: <15}  {li[author_ind][1]: 3} 🌽"
+
+    embed = discord.Embed(title="🌽 Corn Leaderboard 🌽", description=f"```{desc}```", color=discord.Colour(12745742))
+    embed.set_thumbnail(url=cornelius_storage.CORNFIELD_IMG)
+    embed.set_footer(text=f"Page {page}")
+    return embed
 
 client.run(cornelius_storage.TOKEN)
