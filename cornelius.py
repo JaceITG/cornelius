@@ -53,6 +53,10 @@ async def prefixed(message):
     if cmd == "help":
         await sendEmbed(cornelius_storage.HELP_EMBED, channel)
 
+    if cmd == "cornfact" or cmd == "cf":
+        fact = random.choice(cornelius_storage.CORN_FACTS)
+        await sendEmbed(discord.Embed(title="Corn Fact",description=fact, color=discord.Colour(12745742)), channel)
+
 #Implicit commands
 async def implicit(message):
     #### Message property variables ####
@@ -68,7 +72,7 @@ async def implicit(message):
     if channel.id == cornelius_storage.CORN_FIELD_ID:
         await check_corn(message)
     elif text.strip() == "🌽":
-        #50% chance to respond to corn outside of corn-field
+        #25% chance to respond to corn outside of corn-field
         if random.randint(1,4)==1:
             corn_resps = ["🌽","God I fucking love corn!!","Yum","hmmm yes I think this is corn..","🌽"]
 
@@ -138,7 +142,7 @@ async def check_corn(message):
         await message.author.add_roles(heretic)
         
         #Display offending message
-        shame_embed = discord.Embed(title=f"⚠️ WARNING: CRIMES AGAINST CORN COMMITTED BY {message.author.display_name} ⚠️")
+        shame_embed = discord.Embed(title=f"⚠️ WARNING: CRIMES AGAINST CORN COMMITTED BY {message.author.display_name} ⚠️", color=discord.Colour(15158332))
         shame_embed.set_thumbnail(url=message.author.avatar_url)
         shame_embed.add_field(name="Instead of posting 🌽 in #corn-field as the Corn Gods intended, they posted:", value=f"\"{message.content}\"")
         shame_embed.set_footer(text="Shame on them!")
