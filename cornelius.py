@@ -285,7 +285,7 @@ async def get_harvest_embed(author, li, page=1, page_len=10):
     member_list = [x[0] for x in li]
     if author in member_list:
         author_ind = member_list.index(author)
-        desc += f"Your Rank: {author_ind: <15}  {li[author_ind][1]: 3} 🌽"
+        desc += f"Your Rank: {author_ind+1: <15}  {li[author_ind][1]: 3} 🌽"
 
     embed = discord.Embed(title="🌽 Corn Leaderboard 🌽", description=f"```{desc}```", color=discord.Colour(12745742))
     embed.set_thumbnail(url=cornelius_storage.CORNFIELD_IMG)
