@@ -1,4 +1,4 @@
-import discord, random, asyncio, pprint
+import discord, random, asyncio, pprint, math
 from aioconsole import ainput
 from discord import embeds
 import cornelius_storage
@@ -227,9 +227,22 @@ async def harvest_corn(channel):
     for memb in channel.guild.members:
         corn_counts[memb] = 0
 
+    #store running tally of how much corn a user has sent back-to-back
+    running = (None,0)
     async for msg in channel.history(limit=999999):
         try:
-            corn_counts[msg.author] += 1
+            #check if same author as last
+            if running[0] and msg.author.id == running[0]:
+                #add to running total
+                before = running[1]
+                running = (msg.author.id, before+1)
+            else:
+                #reset
+                running = (msg.author.id, 1)
+            
+            #score to add = 0.3727^(n-1), where n is the amount of corn emojis sent in a row
+            score = (math.pow(0.3727, (running[1]-1)))
+            corn_counts[msg.author] += score
         except KeyError:
             #Skip count if user not in dict; probably means user has left the server
             pass
@@ -278,7 +291,7 @@ async def get_harvest_embed(author, li, page=1, page_len=10):
         if len(name)>15:
             name = name[:12] + "..."
 
-        desc+= f"{i+1: <4}➤   {name: <15}  {curr_user[1]: 3} 🌽\n"
+        desc+= f"{i+1: <4}➤   {name: <15}  {curr_user[1]: 3.1f} 🌽\n"
     desc+="____________________________________\n"
 
     #if author is in the member entry of a list item
